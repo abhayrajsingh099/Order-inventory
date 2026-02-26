@@ -18,6 +18,7 @@ class Order(models.Model):
     user_id = models.CharField(max_length=255, blank=False ,null=False)
     product_id = models.IntegerField(blank=False, null=False)
     status = models.CharField(max_length=50, default="CREATED")
+    idempotency_key = models.CharField(max_length=255, unique=True, blank=False, null=False)
 
     def __str__(self):
         return f"{self.user_id}--{self.product_id}"
