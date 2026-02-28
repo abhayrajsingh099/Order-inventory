@@ -38,6 +38,8 @@ class OutboxEvent(models.Model):
     status = models.CharField(max_length=50, default="PENDING")
     created_at = models.DateTimeField(auto_now_add=True)
     processed_at = models.DateTimeField(null=True, blank=True)
+    attempt_count = models.IntegerField(default=0)
+    locked_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.event_type}-{self.status}"

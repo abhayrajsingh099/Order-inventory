@@ -1,19 +1,41 @@
 from django.utils import timezone
 from .models import OutboxEvent, Order
+from datetime import timedelta
+from django.db.models import F
+
+
+VISIBILITY_TIMEOUT = 30  # seconds
+MAX_ATTEMPT = 5
 
 def process_outbox():
 
-    events = OutboxEvent.objects.filter(status="PENDING")
+    cutoff = timezone.now() - timedelta(seconds=VISIBILITY_TIMEOUT)
+
+    events = OutboxEvent.objects.filter(
+        status="PENDING"
+        ) | OutboxEvent.objects.filter(
+            status="PROCESSING", locked_at__lt=cutoff
+        )
+
 
     for event in events:
 
         # 1. Atomic Updation, avoid race
         updated = OutboxEvent.objects.filter(
             id=event.id,
-            status="PENDING"
-        ).update(status="PROCESSING")
+            status__in=["PENDING", "PROCESSING"]
+        ).update(
+            status="PROCESSING",
+            attempt_count=F("attempt_count")+1,
+            locked_at = timezone.now()
+        )
 
         if updated == 0:
+            continue
+
+        if event.attempt_count >= MAX_ATTEMPT:
+            event.status = "FAILED"
+            event.save()
             continue
 
         # 2. side - effect execution
@@ -22,7 +44,7 @@ def process_outbox():
         order = Order.objects.get(id=order_id)
 
         try:
-            success = charge_payment(order.id) #idempotent call
+            success = charge_payment(order.id) #idempotent call, simulation
 
             if success:
                 order.status = "PAID"
@@ -48,5 +70,5 @@ def charge_payment(order_id):
     time.sleep(1)
 
     # simulate success 80% of time
-    return random.random() < 0.3
+    return random.random() < 0.4
 
