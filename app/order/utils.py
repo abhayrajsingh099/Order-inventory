@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.db import IntegrityError
-from .models import Product, Order
+from .models import Product, Order, OutboxEvent
 from django.db.models import F
 from django.shortcuts import get_object_or_404
 
@@ -19,12 +19,17 @@ def make_order(p_id:int, data:dict) -> Order:
                 return None
 
             order = Order.objects.create(**data)
-        return order
 
+            OutboxEvent.objects.create(
+                event_type="PROCESS_PAYMENT",
+                payload={"order_id":order.id}
+            )
     except IntegrityError:
         return Order.objects.get(
             idempotency_key=data['idempotency_key']
         )
+
+
 
 
 
